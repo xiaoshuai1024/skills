@@ -12,7 +12,7 @@ description: 把技术博客文章/主题生成为横屏 16:9 视频。三种模
 - **screencast（courseware 子模式）**：屏录感工具界面——**浏览器真实网页截图打底 + 箭头标注是主角**（`realshot`：任何能在浏览器里呈现的步骤都截图，官网 / 市场 / GitHub / 控制台 / 在线编辑器都行），CSS 仿真窗口（VSCode mockup / 终端）只在浏览器截不到时才兜底（本地桌面应用、需登录态的真实界面）。标题栏下方**顶部常显步骤条**（全部步骤：done/active/future 三态），`active_idx` 高亮当前操作 + 光标箭头，对标抖音「录屏+标注」爆款（Ai小白Lab 26.2 万赞）。deck 卡 `type:"tool"` 即触发
 - **graph**：节点图/知识图谱——中心辐射布局，节点逐个高亮 + 连线生长，适合概念关系/体系架构（Playwright 管线）
 
-三种模式共用 TTS/断句/字幕规则（`narrate.py`）。数据 → 程序化画面渲染 + FFmpeg 合成。零收费、全本地。配音分两档：**发布视频默认 Qwen3-TTS-12Hz-0.6B-Base 克隆声（2026-09-07 用户定规，试听验收「效果最好」；链路 `_qwen_synth.sh`，见下「默认口播配置」）**；IndexTTS-2.5（`_win_synth.sh`）降级为 fallback，edge-tts 仅快速预览与非克隆兜底。
+三种模式共用 TTS/断句/字幕规则（`narrate.py`）。数据 → 程序化画面渲染 + FFmpeg 合成。零收费、全本地。配音分两档：**发布视频默认 Qwen3-TTS-12Hz-Base 克隆声（链路 `_qwen_synth.sh`，见下「默认口播配置」；双平台定档：macOS = 1.7B-Base + MPS，2026-09-10 试听验收；Windows = 0.6B-Base + CUDA，2026-09-07 试听验收「效果最好」）**；IndexTTS-2.5（`_win_synth.sh`）降级为 fallback，edge-tts 仅快速预览与非克隆兜底。
 
 ## 规范文件地图（references 索引，2026-08-30 拆分）
 
@@ -224,7 +224,7 @@ video-generation/                        ← 项目根：所有内容配置 + �
 
 ### 发音（重要决策，多次试听迭代确认）
 
-> ⚠️ **默认口播 = Qwen3-TTS 0.6B-Base 用户声克隆（2026-09-07 用户定规，试听验收通过，违者返工）**：正式视频一律走 `bash scripts/video/_qwen_synth.sh <slug>` → assemble → shrink（全节见下「默认口播配置」）。**排期硬约束：Windows 栈 RTF≈150-300，40 句全片 ≈9.5h，合成必须当天尽早启动、合成期避免用机挤占**。IndexTTS-2.5（`_win_synth.sh`）是 Qwen 链不可用或赶档时的 fallback，回退须先向用户说明并获准；edge-tts 仅预览/非克隆兜底同样须获准。`narrations` 的 voice/rate 只在 edge-tts fallback 生效——渲染前 checklist 必查：**口播是否为 Qwen 克隆声**。
+> ⚠️ **默认口播 = Qwen3-TTS 0.6B-Base 用户声克隆（2026-09-07 用户定规，试听验收通过，违者返工）**：正式视频一律走 `bash scripts/video/_qwen_synth.sh <slug>` → assemble → shrink（全节见下「默认口播配置」）。**排期硬约束：Windows 栈 RTF≈150-300，40 句全片 ≈9.5h，合成必须当天尽早启动、合成期避免用机挤占；macOS 栈（M1 Pro 16GB）RTF≈2（1.7B），40 句全片 ≈3-5 分钟，无排期压力**。IndexTTS-2.5（`_win_synth.sh`）是 Qwen 链不可用或赶档时的 fallback，回退须先向用户说明并获准；edge-tts 仅预览/非克隆兜底同样须获准。`narrations` 的 voice/rate 只在 edge-tts fallback 生效——渲染前 checklist 必查：**口播是否为 Qwen 克隆声**。
 
 - 缩写读音：`normalize_for_tts` 白名单只留错音词（当前 `{DOM, AI}`，AI 必须逐字母 "A I"）；TUI 大小写通吃、探针必须用口播原文；**量词「行」克隆声误读 xíng——写稿期一律改「条」或删量词**，定稿前 grep `那行|一行|通知行|多少行` 自查；❌ 不靠整体提速补偿、❌ 不用中文谐音替换
 - rate 用 `+8%`；逐条权衡经验见 `references/tts-narration.md`
@@ -367,9 +367,17 @@ Python 调用（`generate_narration_from_sentences`）与 CLI（`python -m video
 
 正式视频一律克隆声（见「发音」顶部定规）；下表仅限**用户批准的 fallback** 查用——解说/深度/悬疑默认 `zh-CN-YunjianNeural`（F0med 132Hz 最接近对标）、轻快教程 `zh-CN-YunxiNeural`、新闻播报 `zh-CN-YunyangNeural`、培训女声 `zh-CN-XiaoxiaoNeural`，rate `+8%`。标定方法与完整对照表见 `references/tts-narration.md`。
 
-## 默认口播配置：Qwen3-TTS 0.6B-Base 克隆（2026-09-07 用户定档，openspec windows-native-tts-research §3.5-3.6）
+## 默认口播配置：Qwen3-TTS-Base 克隆（双平台定档：macOS 1.7B 2026-09-10 / Windows 0.6B 2026-09-07）
 
 **默认链（Qwen3-TTS，2026-09-07 用户定规「千问作为默认朗读组件，后续朗读都使用千问」）**：`bash scripts/video/_qwen_synth.sh <slug> [--jobs 3] [--backup]`（skill 固化版 `.skills/skills/video-generation/scripts/qwen/synth_qwen.py`，2026-09-07 下午提效超集：**克隆 prompt 每进程只构建一次并复用**（旧驱动每句重传 ref_audio = 每句重付 ~25s 参考音 VQ 编码）+ **`--jobs N` 多进程有界并行**（0.6B 单实例 ~2GB，空闲显存自动封顶，cap 4）+ RTF 逐句遥测落 `qwen_metrics.json`；加载与逐句调用口径（`device_map="cpu"`+`.to("cuda")`+`language="Chinese"`）逐字复刻已验收链，音色零漂移。Qwen3-TTS-12Hz-0.6B-Base 零样克隆，部署 `D:/models/Qwen3TTS`，py3.12 venv + torch 2.8.0+cu128，显存峰值 ≈1.8GB）→ `tts_pipeline/assemble.py` 发布五步链（120ms 呼吸垫 / RMS -18dB / treble g=2 / deesser / alimiter——原为 IndexTTS 调校，Qwen 首批片若发现音染再另行定档）→ `tts_speed_shrink.py` atempo 1.06 → 产物落 `audio/<slug>_t/`。参考音 `D:/models/IndexTTS25/refaudio/my_voice_seg.wav` + 转写 `D:/models/Qwen3TTS/ref_text.txt`（fw-small 转写逐字核对）；品牌读法替换（1024工程笔记→一零二四）内建；产物契约（`c{i}_s{j}.wav/.txt/.tts.txt/meta.json`）与 IndexTTS 链同构，下游 assemble/shrink/渲染零改动；断点续跑（中断重启自动跳过已出句）。性能数据表与根因档案见 `scripts/qwen/README.md`。
+
+**macOS 链（M1 Pro 16GB，2026-09-10 定档验收）**：`bash scripts/video/_qwen_synth.sh <slug>` 同一入口，脚本按 `uname` 自动分流。与 Windows 链的差异——
+- **模型默认 `--size 1.7b`**（本机实测音质/相似度优于 0.6B 且 RTF≈2 可接受；Windows 仍默认 0.6b）
+- **加载口径 `device_map="mps"` + bf16 直挂**（无 CUDA 段错误问题，不需要 cpu 中转；已实测单实例 60s 出 27.4s 音频）
+- **路径**：权重 `~/codes/tts/models/Qwen3-TTS-12Hz-1.7B-Base`（modelscope 原目录），venv `~/codes/tts/.venv-qwen`（py3.12 + torch 2.14），克隆参考音 `~/codes/tts/ref_15s.wav` + 转写 `~/codes/tts/ref_text.txt`（2026-09-10 新采样：桌面录音 43s 去静音取前 15s，whisper-small 转写）
+- **`--jobs` 强制 1**：16GB 统一内存跑 1.7B 单实例已验收，多实例必爆
+- **合成入口脚本 `_qwen_synth.sh` 与参考音均不入公共仓库**（声音属隐私资产；`.skills/skills` 软链到 `~/codes/skills/skills` 源仓库，skill 更新即生效）
+- 探针：`cd <项目根> && ~/codes/tts/.venv-qwen/bin/python ~/codes/skills/skills/video-generation/scripts/qwen/synth_qwen.py --probe`
 
 **取舍留痕（首支 Qwen 生产片 gpt6-astra-impact，2026-09-07）**：① 不做 pause_audit 门禁选优/手术——保护用户试听认可的原始停顿，审计可另跑只读版；② 无 `--emo dyn` 数值情绪向量——情绪随参考音自然跟随；③ 首次换声加 `--backup`（旧产物移 `.bak-indextts25`）。
 

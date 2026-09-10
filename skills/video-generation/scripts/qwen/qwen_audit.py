@@ -30,6 +30,13 @@ import platform
 if platform.system() == "Windows":
     QWEN_ROOT = Path("D:/models/Qwen3TTS")
     REF_WAV = Path("D:/models/IndexTTS25/refaudio/my_voice_seg.wav")
+elif platform.system() == "Darwin":
+    # macOS（2026-09-10 定档）：与 ~/codes/tts TTS 工作区共用权重与参考音。
+    # 音色 = ref_15s.wav（用户新录音 43s 去静音取前 15s，whisper-small 转写），
+    # 已在 1.7B-Base + MPS bf16 链路试听验收（RTF≈2）。参考音属隐私资产，
+    # 只放本地，严禁拷入本公共 skill 仓库。
+    QWEN_ROOT = Path.home() / "codes" / "tts"
+    REF_WAV = QWEN_ROOT / "ref_15s.wav"
 else:  # WSL：同机双栈复用 D 盘权重
     QWEN_ROOT = Path("/mnt/d/models/Qwen3TTS")
     REF_WAV = Path("/mnt/d/models/IndexTTS25/refaudio/my_voice_seg.wav")

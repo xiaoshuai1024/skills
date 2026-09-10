@@ -40,7 +40,11 @@ PROBE_SENTS = ["今天我们用三句话讲清楚这个概念。",
 
 
 def find_repo_root():
-    for anc in Path(__file__).resolve().parents:
+    # 先从 cwd 自身及其父链向上找（macOS 源仓库场景：skill 装在 ~/codes/skills，
+    # 从 blog-src 项目根发起），再退回脚本自身位置（Windows 原路径）
+    here = Path(__file__).resolve().parent
+    cands = [Path.cwd(), *Path.cwd().parents, here, *here.parents]
+    for anc in cands:
         if (anc / "scripts" / "video" / "pause_audit.py").is_file():
             return anc
     raise SystemExit("repo root not found（需在 blog-src 仓内运行）")
@@ -84,16 +88,24 @@ def load_engine(size):
     """已验收加载口径（与 synth_qwen3tts.py 逐字对齐）：device_map="cpu" 挂
     accelerate hook 自动搬输入张量（本机 device_map="cuda:0" 段错误的绕行），
     再整体上卡。"""
+    import platform
     import torch
     from qwen_tts import Qwen3TTSModel
 
-    weights = QWEN_ROOT / "weights" / ("Qwen3-TTS-12Hz-0.6B-Base"
-                                       if size == "0.6b" else "Qwen3-TTS-12Hz-1.7B-Base")
+    mac = platform.system() == "Darwin"
+    # macOS 权重在 ~/codes/tts/models/（modelscope 下载原目录），Windows/WSL 在 D:/models/Qwen3TTS/weights/
+    weights = (QWEN_ROOT / "models" if mac else QWEN_ROOT / "weights") / (
+        "Qwen3-TTS-12Hz-0.6B-Base" if size == "0.6b" else "Qwen3-TTS-12Hz-1.7B-Base")
     t0 = time.perf_counter()
-    model = Qwen3TTSModel.from_pretrained(str(weights), device_map="cpu",
-                                          dtype=torch.bfloat16)
-    model.model.to("cuda")
-    model.device = model.model.device
+    if mac:
+        # macOS 加载口径（2026-09-10 验收）：MPS 直挂 + bf16，无需 CPU 中转
+        model = Qwen3TTSModel.from_pretrained(str(weights), device_map="mps",
+                                              dtype=torch.bfloat16)
+    else:
+        model = Qwen3TTSModel.from_pretrained(str(weights), device_map="cpu",
+                                              dtype=torch.bfloat16)
+        model.model.to("cuda")
+        model.device = model.model.device
     ref_text = REF_TXT.read_text(encoding="utf-8").strip()
     items = model.create_voice_clone_prompt(ref_audio=str(REF_WAV), ref_text=ref_text)
     print(f"[engine] loaded {size} + clone prompt in {time.perf_counter()-t0:.1f}s",
@@ -198,7 +210,11 @@ def main():
     ap.add_argument("--backup", action="store_true",
                     help="把现有 sent/audio 产物移到 .bak-indextts25 目录（首次换声必加）")
     ap.add_argument("--limit", type=int, default=0, help="只合成前 N 句（探针/demo）")
-    ap.add_argument("--size", default="0.6b", choices=["0.6b", "1.7b"])
+    # 默认档：macOS=1.7b（2026-09-10 验收），Windows=0.6b（2026-09-07 定档）
+    ap.add_argument("--size",
+                    default="1.7b" if __import__("platform").system() == "Darwin"
+                    else "0.6b",
+                    choices=["0.6b", "1.7b"])
     a = ap.parse_args()
 
     repo = find_repo_root()
@@ -267,10 +283,14 @@ def main():
         print(f"QWEN_SYNTH_DONE slug={a.slug} 全部复用 audio={reused_audio:.1f}s")
         return
 
-    # ---- 并行封顶：按空闲显存估实例数
+    # ---- 并行封顶：按空闲显存估实例数（macOS 统一内存无 nvidia-smi，
+    #      16GB 跑 1.7B 单实例已验收，强制 jobs=1 防多实例爆内存）
+    import platform as _pf
     vram_cap = 8
     free = free_vram_mib()
-    if free:
+    if _pf.system() == "Darwin":
+        vram_cap, free = 1, 0
+    elif free:
         vram_cap = max(1, free // VRAM_PER_INSTANCE[a.size])
     import multiprocessing as mp
     jobs = max(1, min(a.jobs, vram_cap, len(tasks), 4))
